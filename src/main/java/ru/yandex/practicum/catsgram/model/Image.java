@@ -18,3 +18,4 @@ public class Image {
     private String filePath;
 
 }
+

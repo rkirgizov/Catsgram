@@ -1,99 +1,44 @@
 package ru.yandex.practicum.catsgram.controller;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import ru.yandex.practicum.catsgram.exception.ConditionsNotMetException;
-import ru.yandex.practicum.catsgram.exception.DuplicatedDataException;
-import ru.yandex.practicum.catsgram.exception.NotFoundException;
+import ru.yandex.practicum.catsgram.model.Post;
 import ru.yandex.practicum.catsgram.model.User;
+import ru.yandex.practicum.catsgram.service.UserService;
 
-import java.time.Instant;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/users")
 public class UserController {
+    private final UserService userService;
 
-    private final Map<Long, User> users = new HashMap<>();
+    @Autowired
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
 
     @GetMapping
     public Collection<User> findAll() {
-        return users.values();
+        return userService.findAll();
+    }
+
+    @GetMapping("/{userId}")
+    public Optional<User> findPost(@PathVariable("userId") Long userId) {
+        return userService.findUserById(userId);
     }
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public User create(@RequestBody User user) {
-
-        // проверяем выполнение необходимых условий
-        if (user.getEmail() == null || user.getEmail().isBlank()) {
-            throw new ConditionsNotMetException("Имейл должен быть указан");
-        }
-        if (users.values()
-                .stream()
-                .anyMatch(u -> u.getEmail().equals(user.getEmail()))) {
-            throw new DuplicatedDataException("Этот имейл уже используется");
-        }
-
-        // формируем дополнительные данные
-        user.setId(getNextId());
-        user.setRegistrationDate(Instant.now());
-        // сохраняем новую публикацию в памяти приложения
-        users.put(user.getId(), user);
-        return user;
+        return userService.create(user);
     }
 
     @PutMapping
-    public User update(@RequestBody User newUser) {
-        // проверяем необходимые условия
-        if (newUser.getId() == null) {
-            throw new ConditionsNotMetException("Id должен быть указан");
-        }
-        if (users.containsKey(newUser.getId())) {
-            User oldUser = users.get(newUser.getId());
-            if (newUser.getEmail() == null || newUser.getEmail().isBlank()) {
-                throw new ConditionsNotMetException("Имейл должен быть указан");
-            }
-
-            if (users.values()
-                    .stream()
-                    .anyMatch(u -> u.getEmail().equals(newUser.getEmail()))) {
-                throw new DuplicatedDataException("Этот имейл уже используется");
-            }
-
-            // если публикация найдена и все условия соблюдены, обновляем её содержимое
-            if ((newUser.getUsername() != null)
-                    && (!newUser.getUsername().isBlank())
-                    && (!newUser.getUsername().isEmpty())) {
-                oldUser.setUsername(newUser.getUsername());
-            }
-
-            if ((newUser.getPassword() != null)
-                    && (!newUser.getPassword().isBlank())
-                    && (!newUser.getPassword().isEmpty())) {
-                oldUser.setPassword(newUser.getPassword());
-            }
-
-            if ((newUser.getEmail() != null)
-                    && (!newUser.getEmail().isBlank())
-                    && (!newUser.getEmail().isEmpty())) {
-                oldUser.setEmail(newUser.getEmail());
-            }
-
-            return oldUser;
-        }
-        throw new NotFoundException("Пользователь с id = " + newUser.getId() + " не найден");
+    public User update(@RequestBody User user) {
+        return userService.update(user);
     }
-
-    // вспомогательный метод для генерации идентификатора нового поста
-    private long getNextId() {
-        long currentMaxId = users.keySet()
-                .stream()
-                .mapToLong(id -> id)
-                .max()
-                .orElse(0);
-        return ++currentMaxId;
-    }
-
 
 }
