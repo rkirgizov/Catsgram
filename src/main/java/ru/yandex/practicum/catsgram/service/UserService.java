@@ -27,8 +27,6 @@ public class UserService {
         return Optional.ofNullable(users.get(id));
     }
 
-
-
     public User create(@RequestBody User user) {
 
         // проверяем выполнение необходимых условий
