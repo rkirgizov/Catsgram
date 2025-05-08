@@ -1,12 +1,14 @@
 package ru.yandex.practicum.catsgram.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import ru.yandex.practicum.catsgram.dal.ImageRepository;
+import ru.yandex.practicum.catsgram.dto.*;
 import ru.yandex.practicum.catsgram.exception.ConditionsNotMetException;
 import ru.yandex.practicum.catsgram.exception.ImageFileException;
 import ru.yandex.practicum.catsgram.exception.NotFoundException;
+import ru.yandex.practicum.catsgram.mapper.ImageMapper;
 import ru.yandex.practicum.catsgram.model.Image;
 import ru.yandex.practicum.catsgram.model.ImageData;
-import ru.yandex.practicum.catsgram.model.Post;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -16,60 +18,71 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class ImageService {
+    private final ImageRepository imageRepository;
     private final PostService postService;
-
-    private final Map<Long, Image> images = new HashMap<>();
 
     // Укажите директорию для хранения изображений
     private final String imageDirectory = "${catsgram.image-directory}";
 
-    public List<Image> saveImages(long postId, List<MultipartFile> files) {
-        return files.stream().map(file -> saveImage(postId, file)).collect(Collectors.toList());
+    @Autowired
+    public ImageService(ImageRepository imageRepository, PostService postService) {
+        this.imageRepository = imageRepository;
+        this.postService = postService;
     }
 
-    public Image saveImage(long postId, MultipartFile file) {
-        Post post = postService.findPostById(postId)
+    public List<ImageDto> saveImages(long postId, List<MultipartFile> files, NewImageRequest request) {
+        return files.stream().map(file -> saveImage(postId, file, request)).collect(Collectors.toList());
+    }
+
+    public ImageDto saveImage(long postId, MultipartFile file, NewImageRequest request) {
+        PostDto postDto = postService.getPostById(postId)
                 .orElseThrow(() -> new ConditionsNotMetException("Указанный пост не найден"));
-        Path filePath = saveFile(file, post);
-        long imageId = getNextId();
-        Image image = new Image();
-        image.setId(imageId);
-        image.setFilePath(filePath.toString());
-        image.setPostId(postId);
-        image.setOriginalFileName(file.getOriginalFilename());
-        images.put(imageId, image);
-        return image;
+        Path filePath = saveFile(file, postDto);
+        Image image = ImageMapper.mapToImage(request, filePath);
+        image = imageRepository.save(image);
+
+        return ImageMapper.mapToImageDto(image);
     }
 
-    public List<Image> getPostImages(long postId) {
-        return images.values()
+    public Optional<ImageDto> getImageById(long imageId) {
+        return Optional.ofNullable(imageRepository.findById(imageId)
+                .map(ImageMapper::mapToImageDto)
+                .orElseThrow(() -> new NotFoundException("Изображение не найдено с ID: " + imageId)));
+    }
+
+    public List<ImageDto> getPostImages(Long postId) {
+        return imageRepository.findByPostId(postId)
                 .stream()
-                .filter(image -> image.getPostId() == postId)
+                .map(ImageMapper::mapToImageDto)
                 .collect(Collectors.toList());
     }
 
-    public ImageData getImageData(long imageId) {
-        if (!images.containsKey(imageId)) {
-            throw new NotFoundException("Изображение с id = " + imageId + " не найдено");
-        }
-        Image image = images.get(imageId);
-        byte[] date = loadFile(image);
-        return new ImageData(date, image.getOriginalFileName());
+    public ImageDto updateImage(long imageId, UpdateImageRequest request) {
+        Image updatedImage = imageRepository.findById(imageId)
+                .map(image -> ImageMapper.updateImageFields(image, request))
+                .orElseThrow(() -> new NotFoundException("Изображение не найдено"));
+        updatedImage = imageRepository.update(updatedImage);
+        return ImageMapper.mapToImageDto(updatedImage);
     }
 
-    private Path saveFile(MultipartFile file, Post post) {
+    public ImageData getImageData(long imageId) {
+        Image imageForResponse = imageRepository.findById(imageId)
+                .orElseThrow(() -> new NotFoundException("Изображение не найдено"));
+        byte[] date = loadFile(imageForResponse);
+        return new ImageData(date, imageForResponse.getOriginalFileName());
+    }
+
+    private Path saveFile(MultipartFile file, PostDto postDto) {
         try {
             String uniqueFileName = String.format("%d.%s", Instant.now().toEpochMilli(),
                     StringUtils.getFilenameExtension(file.getOriginalFilename()));
-            Path uploadPath = Paths.get(imageDirectory, String.valueOf(post.getAuthorId()), post.getId().toString());
+            Path uploadPath = Paths.get(imageDirectory, String.valueOf(postDto.getAuthorId()), postDto.getId().toString());
             Path filePath = uploadPath.resolve(uniqueFileName);
             if (!Files.exists(uploadPath)) {
                 Files.createDirectories(uploadPath);
@@ -96,12 +109,5 @@ public class ImageService {
         }
     }
 
-    private long getNextId() {
-        long currentMaxId = images.keySet()
-                .stream()
-                .mapToLong(id -> id)
-                .max()
-                .orElse(0);
-        return ++currentMaxId;
-    }
+
 }

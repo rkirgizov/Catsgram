@@ -14,13 +14,9 @@ public class User {
     String email — электронная почта пользователя,
     String password — пароль пользователя,
     Instant registrationDate — дата и время регистрации.*/
-
-    private Long id;
+    private long id;
     private String username;
     private String email;
     private String password;
     private Instant registrationDate;
-
-
-
 }
