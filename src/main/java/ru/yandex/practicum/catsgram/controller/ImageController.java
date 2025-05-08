@@ -1,6 +1,7 @@
 package ru.yandex.practicum.catsgram.controller;
 
-import ru.yandex.practicum.catsgram.model.Image;
+import ru.yandex.practicum.catsgram.dto.ImageDto;
+import ru.yandex.practicum.catsgram.dto.NewImageRequest;
 import ru.yandex.practicum.catsgram.model.ImageData;
 import ru.yandex.practicum.catsgram.service.ImageService;
 import lombok.RequiredArgsConstructor;
@@ -17,18 +18,19 @@ public class ImageController {
 
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/posts/{postId}/images")
-    public List<Image> addPostImage(@PathVariable("postId") long postId,
-                                    @RequestParam("image")List<MultipartFile> files) {
-        return imageService.saveImages(postId,files);
+    public List<ImageDto> addPostImage(@PathVariable("postId") long imageId,
+                                       @RequestParam("image")List<MultipartFile> files,
+                                       @RequestBody NewImageRequest imageRequest) {
+        return imageService.saveImages(imageId,files,imageRequest);
     }
 
-    @GetMapping(value = "/images/{imageId}/images")
-    public List<Image> getPostImages(@PathVariable("postId") long postId) {
+    @GetMapping(value = "/images/{postId}/images")
+    public List<ImageDto> getPostImages(@PathVariable("postId") Long postId) {
         return imageService.getPostImages(postId);
     }
 
-    @GetMapping(value = "/images/{images}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-    public ResponseEntity<byte[]> dounloadImage(@PathVariable long imageId) {
+    @GetMapping(value = "/images/{imageId}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public ResponseEntity<byte[]> downloadImage(@PathVariable long imageId) {
         ImageData imageData = imageService.getImageData(imageId);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentDisposition(

@@ -17,5 +17,4 @@ public class Post {
     public Long authorId;
     public String description;
     public Instant postDate;
-
 }
